@@ -6,7 +6,7 @@ const noteSchema = new Schema({
     content:{type:String , required:true},
     tags:{type:[String] , default:[]},
     isPinned:{type:Boolean , default:false},
-    userId:{type:String , required:true},
+    userId:{type:mongoose.Schema.Types.ObjectId, ref: "User", required: true  },
     createdOn:{type:Date , default:new Date().getTime()},
 });
 
