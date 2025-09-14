@@ -2,11 +2,13 @@ require("dotenv").config();
 
 const config = require("./config.json");
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 
 mongoose.connect(config.connectionString);
 
 const User = require("./model/user_model");
 const Note = require("./model/note_model");
+const Otp = require("./model/otp.js");
 
 const express = require("express");
 const cors = require("cors");
@@ -278,6 +280,86 @@ app.get("/get-all-notes", authenticateToken, async (req, res) => {
   }
 });
 
+app.post("/send-otp", async (req, res) => {
+ 
+    try {
+ 
+const { email } = req.body;
+     if (!email) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await Otp.deleteOne({ email });
+ 
+    const otp = await Otp.create({
+      email,
+      otp: otpCode,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),  
+    });
+ 
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "gpdndev@gmail.com",
+        pass: "utqo bswo hccn gkpr",
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+    const senderEmail = "gpdndev@gmail.com";
+
+    await transporter.sendMail({
+      from: `"Streamify" <${senderEmail}>`,
+      to: email,
+      subject: "Your OTP Code",
+      text: `Your OTP code is ${otpCode}. It expires in 5 minutes.`,
+      html: `<h2>Your OTP code is <b>${otpCode}</b></h2><p>It expires in 3 minutes.</p>`,
+    });
+ 
+    return res
+      .status(200)
+      .json({ success: true, message: "OTP sent to email" });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: true,
+      message: "Internal server error",
+    });
+  }
+});
+
+app.post("/verify-otp", async (req, res) => {
+   try {
+ 
+    const { email, otp } = req.body;
+     if (!email || !otp) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+     const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
+      return res.status(400).json({ message: "OTP IS EXPIRED" });
+    }
+ 
+    if (otp !== otpRecord?.otp) {
+      return res.status(400).json({ message: "Wrong otp" });
+    } else {
+      await Otp.deleteOne({ _id: otpRecord._id });
+    }
+ 
+    res
+      .status(200)
+      .json({ success: true, message: "OTP verified successfully" });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: true,
+      message: "Internal server error",
+    });
+  }
+});
+
 app.delete("/delete-note/:noteId", authenticateToken, async (req, res) => {
   const noteId = req.params.noteId;
   let id;
@@ -398,6 +480,6 @@ app.get("/search-notes", authenticateToken, async (req, res) => {
 
 app.listen(8000, () => {
   console.log("Running on port 8000");
-});
+}); 
 
 module.exports = app;
